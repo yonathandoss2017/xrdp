@@ -22,7 +22,7 @@ pygtk.require('2.0')
 class xwin:
 	host = ''
 	xww = True
-	keyspace = {' ':'space', '!':'exclam', '"':'quotedbl', '#':'numbersign', '$':'dollar', '%':'percent', '&':'ampersand', '\'':'quoteright', '(':'parenleft', ')':'parenright', '[':'bracketleft', '*':'asterisk', '\\':'backslash', '+':'plus', ']':'bracketright', ',':'comma', '^':'asciicircum', '-':'minus', '_':'underscore', '.':'period', '`':'quoteleft', '/':'slash', ':':'colon', ';':'semicolon', '<':'less', '=':'equal', '>':'greater', '?':'question', '@':'at', '{':'braceleft', '|':'bar', '}':'braceright', '~':'asciitilde'}
+	keyspace = {' ':'space', '!':'exclam', '"':'quotedbl', '#':'numbersign', '$':'dollar', '%':'percent', '&':'ampersand', '\'':'quoteright', '(':'parenleft', ')':'parenright', '[':'bracketleft', '*':'asterisk', '+':'plus', ',':'comma', '-':'minus', '.':'period', '/':'slash', ':':'colon', ';':'semicolon', '<':'less', '=':'equal', '>':'greater', '?':'question', '@':'at', '\\':'backslash', ']':'bracketright', '^':'asciicircum', '_':'underscore', '`':'grave', '{':'braceleft', '|':'bar', '}':'braceright', '~':'asciitilde'}
 	spr_state = False
 	ctrl_state = False
 	alt_state = False
@@ -210,7 +210,7 @@ def valid_ip(address):
         return False
 
 def main():
-	print """\
+	print("""\
 	              _       
 	__  ___ __ __| |_ __  
 	\ \/ / '__/ _` | '_ \ 
@@ -218,7 +218,7 @@ def main():
 	/_/\_\_|  \__,_| .__/ 
 	               |_|    
 		X11 Remote Desktop
-	"""
+	""")
 
 	if (len(sys.argv) == 1):
 		print("xrdp.py <host>:<dp>")
