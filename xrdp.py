@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 #
 # xrdp.py - X11 Remote Desktop
 # =====================================
@@ -13,11 +13,11 @@ import sys
 import subprocess
 import time
 import re
-import pygtk
-import cairo
-import gtk
+import gi
+gi.require_version('Gtk', '3.0')
+gi.require_version('Gdk', '3.0')
+from gi.repository import Gtk, Gdk, cairo
 import socket
-pygtk.require('2.0')
 
 class xwin:
 	host = ''
@@ -123,52 +123,47 @@ class xwin:
 		cmd = 'export DISPLAY={} && xdotool key {}'.format(self.host, self.string_to_xdo(entry_text, entry))
 		os.system(cmd)
 
-	def expose(self, widget, event):
-		self.cr = widget.window.cairo_create()
-		self.cr.set_operator(cairo.OPERATOR_CLEAR)
-		self.cr.rectangle(0.0, 0.0, *widget.get_size())
-		self.cr.fill()
+	def expose(self, widget, cr):
+		cr.set_operator(cairo.OPERATOR_CLEAR)
+		allocation = widget.get_allocation()
+		cr.rectangle(0.0, 0.0, allocation.width, allocation.height)
+		cr.fill()
 
 	def destroy(self, widget, data=None):
 		if self.xww:
 			os.system("kill {}".format(self.xww.pid + 1))
-		gtk.main_quit()
+		Gtk.main_quit()
 
 	def delete_event(self, widget, event, data=None):
 		return False
 
 	def __init__(self, width, height):
-		self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
+		self.window = Gtk.Window(Gtk.WindowType.TOPLEVEL)
 		self.window.connect("delete_event", self.delete_event)
 		self.window.connect("destroy", self.destroy)
 		self.window.set_border_width(0)
 		self.window.set_size_request(width, height + 30)
 		self.window.set_app_paintable(True)
 
-		self.screen = self.window.get_screen()
-		self.rgba = self.screen.get_rgba_colormap()
-		self.window.set_colormap(self.rgba)
-		self.window.connect('expose-event', self.expose)
+		self.vbox = Gtk.VBox(homogeneous=False, spacing=5)
+		self.hbox = Gtk.HBox(homogeneous=False, spacing=3)
+		self.bbox = Gtk.HBox(homogeneous=True, spacing=3)
 
-		self.vbox = gtk.VBox(False, 5)
-		self.hbox = gtk.HBox(False, 3)
-		self.bbox = gtk.HBox(True, 3)
-
-		self.entry = gtk.Entry()
+		self.entry = Gtk.Entry()
 		self.entry.set_max_length(0)
 		self.entry.set_size_request(int(width/2), 25)
 		self.entry.connect("activate", self.enter_callback, self.entry)
-		self.spr = gtk.ToggleButton(label='spr')
+		self.spr = Gtk.ToggleButton(label='spr')
 		self.spr.connect("toggled", self.on_button_toggled, 'spr')
-		self.ctrl = gtk.ToggleButton(label='ctrl')
+		self.ctrl = Gtk.ToggleButton(label='ctrl')
 		self.ctrl.connect("toggled", self.on_button_toggled, 'ctrl')
-		self.alt = gtk.ToggleButton(label='alt')
+		self.alt = Gtk.ToggleButton(label='alt')
 		self.alt.connect("toggled", self.on_button_toggled, 'alt')
-		self.enter = gtk.Button(label='Enter')
+		self.enter = Gtk.Button(label='Enter')
 		self.enter.connect("clicked", self.on_enter_clicked)
-		self.backspace = gtk.Button(label='Backspace')
+		self.backspace = Gtk.Button(label='Backspace')
 		self.backspace.connect("clicked", self.on_backspace_clicked)
-		self.shell = gtk.Button(label='R-Shell')
+		self.shell = Gtk.Button(label='R-Shell')
 		self.shell.connect("clicked", self.on_shell_clicked, self.entry)
 
 		self.hbox.add(self.entry)
@@ -180,11 +175,11 @@ class xwin:
 		self.bbox.add(self.shell)
 		self.hbox.add(self.bbox)
 
-		self.halign = gtk.Alignment(1, 0, 1, 0)
+		self.halign = Gtk.Alignment(xalign=1, yalign=0, xscale=1, yscale=0)
 		self.halign.add(self.hbox)
 
-		self.allalign = gtk.Alignment(0, 0, 1, 1)
-		self.clickbox = gtk.EventBox()
+		self.allalign = Gtk.Alignment(xalign=0, yalign=0, xscale=1, yscale=1)
+		self.clickbox = Gtk.EventBox()
 		self.clickbox.connect('button-press-event', self.on_click)
 		self.clickbox.set_visible_window(False)
 
@@ -200,7 +195,7 @@ class xwin:
 		self.window.move(100, 100)
 
 	def main(self):
-		gtk.main()
+		Gtk.main()
 
 def valid_ip(address):
     try: 
@@ -245,6 +240,8 @@ requirements:
  xwininfo
  xwatchwin
  xdotool
+ python3-gi
+ gir1.2-gtk-3.0
 
 usage:
 --------------
